@@ -1,3 +1,4 @@
+import os
 import jwt
 import datetime
 import uuid
@@ -5,17 +6,27 @@ from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from werkzeug.security import generate_password_hash, check_password_hash
 from bson.objectid import ObjectId
+from urllib.parse import quote_plus
 
 app = Flask(__name__)
 
+# Secure MongoDB credentials using environment variables
+DB_USERNAME = os.getenv("DB_USERNAME", "your-username")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "your-password")
+
+# Encode MongoDB credentials to avoid special character issues
+ENCODED_USERNAME = quote_plus(DB_USERNAME)
+ENCODED_PASSWORD = quote_plus(DB_PASSWORD)
+
 # MongoDB Connection
-MONGO_URI = "mongodb+srv://gokulg12th2004:Gokul@2004@cluster0.bmbqd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URI = f"mongodb+srv://{ENCODED_USERNAME}:{ENCODED_PASSWORD}@cluster0.bmbqd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(MONGO_URI)
 db = client["ai_health_monitor"]  # Database
-users_collection = db["users"]  # Collection
+users_collection = db["users"]  # Users Collection
 
-SECRET_KEY = "your_secret_key"
-REFRESH_SECRET_KEY = "your_refresh_secret_key"
+# Secret keys for JWT
+SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
+REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY", "your_refresh_secret_key")
 
 # Function to generate tokens
 def generate_tokens(username):
