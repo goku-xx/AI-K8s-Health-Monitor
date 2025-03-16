@@ -1,25 +1,45 @@
+import jwt
+import datetime
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+SECRET_KEY = "your_secret_key"  # Change this to a secure key
 
-# Define your API key
-API_KEY = "mysecureapikey123"
+# Generate JWT Token
+@app.route("/get_token", methods=["POST"])
+def get_token():
+    data = request.get_json()
+    username = data.get("username")
 
-@app.route("/")
-def home():
-    return "Flask API is running securely!"
+    if not username:
+        return jsonify({"error": "Missing username"}), 400
 
+    token = jwt.encode(
+        {"user": username, "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)},
+        SECRET_KEY,
+        algorithm="HS256",
+    )
+    return jsonify({"token": token})
+
+
+# Secure Predict Route with JWT
 @app.route("/predict", methods=["POST"])
 def predict():
-    # Get API key from headers
-    api_key = request.headers.get("X-API-KEY")
+    token = request.headers.get("Authorization")
 
-    # Check if API key is valid
-    if api_key != API_KEY:
-        return jsonify({"error": "Unauthorized. Invalid API Key."}), 403
+    if not token:
+        return jsonify({"error": "Missing Token"}), 401
+
+    try:
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token Expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid Token"}), 401
 
     data = request.get_json()
-    return jsonify({"message": "Prediction service is working!", "data_received": data})
+    return jsonify({"message": f"Hello {decoded['user']}, Prediction service is working!", "data_received": data})
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
