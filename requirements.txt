@@ -1,5 +1,7 @@
-pyjwt
-flask
+Flask
 gunicorn
 pymongo
 dnspython
+pyjwt
+werkzeug
+prometheus_client
