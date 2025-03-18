@@ -2,135 +2,174 @@ import os
 import jwt
 import datetime
 import uuid
-from flask import Flask, request, jsonify
+import logging
+from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
 from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
 from werkzeug.security import generate_password_hash, check_password_hash
-from bson.objectid import ObjectId
-from urllib.parse import quote_plus
+from prometheus_client import Gauge, generate_latest
+from dotenv import load_dotenv
 
+# 🔹 Load environment variables
+load_dotenv()
+
+# 🔹 Flask App Setup
 app = Flask(__name__)
+CORS(app)  # Enable CORS for cross-origin requests
 
-# Secure MongoDB credentials using environment variables
-DB_USERNAME = os.getenv("DB_USERNAME", "your-username")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "your-password")
+# 🔹 Configure Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Encode MongoDB credentials to avoid special character issues
-ENCODED_USERNAME = quote_plus(DB_USERNAME)
-ENCODED_PASSWORD = quote_plus(DB_PASSWORD)
+# ✅ MongoDB Connection using MONGO_URI
+MONGO_URI = os.getenv("MONGO_URI")
 
-# MongoDB Connection
-MONGO_URI = f"mongodb+srv://{ENCODED_USERNAME}:{ENCODED_PASSWORD}@cluster0.bmbqd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-client = MongoClient(MONGO_URI)
-db = client["ai_health_monitor"]  # Database
-users_collection = db["users"]  # Users Collection
+if not MONGO_URI:
+    logging.error("❌ Missing MONGO_URI in environment variables!")
+    exit(1)
 
-# Secret keys for JWT
-SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
-REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY", "your_refresh_secret_key")
+try:
+    logging.info("🔗 Connecting to MongoDB...")
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    client.server_info()  # Test connection
+    db = client.get_database()  # Automatically picks DB from URI
+    users_collection = db["users"]
+    logging.info("✅ Successfully connected to MongoDB!")
+except ConnectionFailure as e:
+    logging.error(f"❌ MongoDB Connection Error: {e}")
+    exit(1)
 
-# Function to generate tokens
+# 🔒 Secret Keys for JWT Authentication
+SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
+REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY", "default_refresh_key")
+
+# 🔹 Define Prometheus Metrics
+cpu_usage = Gauge("k8s_cpu_usage", "CPU Usage of the Kubernetes Cluster")
+memory_usage = Gauge("k8s_memory_usage", "Memory Usage of the Kubernetes Cluster")
+
+@app.route("/metrics")
+def metrics():
+    return Response(generate_latest(), mimetype="text/plain")
+
+@app.route("/")
+def home():
+    return jsonify({"message": "Welcome to AI-K8s Health Monitor!"})
+
+
+# 🔑 Function to Generate JWT Tokens
 def generate_tokens(username):
     access_token = jwt.encode(
-        {
-            "user": username,
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=30),
-        },
+        {"user": username, "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=30)},
         SECRET_KEY,
         algorithm="HS256",
     )
-
     refresh_token = jwt.encode(
-        {
-            "user": username,
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7),
-            "jti": str(uuid.uuid4()),
-        },
+        {"user": username, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7), "jti": str(uuid.uuid4())},
         REFRESH_SECRET_KEY,
         algorithm="HS256",
     )
-
     return access_token, refresh_token
 
-# User Registration
+
+# 📝 User Registration
 @app.route("/register", methods=["POST"])
 def register():
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
+    try:
+        data = request.get_json()
+        username = data.get("username")
+        password = data.get("password")
 
-    if not username or not password:
-        return jsonify({"error": "Missing username or password"}), 400
+        if not username or not password:
+            return jsonify({"error": "Missing username or password"}), 400
 
-    hashed_password = generate_password_hash(password)
+        if users_collection.find_one({"username": username}):
+            return jsonify({"error": "User already exists"}), 400
 
-    if users_collection.find_one({"username": username}):
-        return jsonify({"error": "User already exists"}), 400
+        hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
 
-    users_collection.insert_one({"username": username, "password": hashed_password, "refresh_token": None})
-    return jsonify({"message": "User registered successfully"}), 201
+        users_collection.insert_one({"username": username, "password": hashed_password})
+        return jsonify({"message": "User registered successfully"}), 201
 
-# Generate Access & Refresh Tokens
+    except Exception as e:
+        logging.error(f"❌ Error in registration: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# 🔑 Generate Access & Refresh Tokens
 @app.route("/get_token", methods=["POST"])
 def get_token():
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
+    try:
+        data = request.get_json()
+        username = data.get("username")
+        password = data.get("password")
 
-    if not username or not password:
-        return jsonify({"error": "Missing username or password"}), 400
+        if not username or not password:
+            return jsonify({"error": "Missing username or password"}), 400
 
-    user = users_collection.find_one({"username": username})
+        user = users_collection.find_one({"username": username})
 
-    if not user or not check_password_hash(user["password"], password):
-        return jsonify({"error": "Invalid credentials"}), 401
+        if not user or not check_password_hash(user["password"], password):
+            return jsonify({"error": "Invalid credentials"}), 401
 
-    access_token, refresh_token = generate_tokens(username)
+        access_token, refresh_token = generate_tokens(username)
 
-    users_collection.update_one({"_id": user["_id"]}, {"$set": {"refresh_token": refresh_token}})
-    return jsonify({"access_token": access_token, "refresh_token": refresh_token})
+        return jsonify({"access_token": access_token, "refresh_token": refresh_token})
 
-# Refresh Token Endpoint
+    except Exception as e:
+        logging.error(f"❌ Error in token generation: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# 🔄 Refresh Token Endpoint
 @app.route("/refresh", methods=["POST"])
 def refresh():
-    data = request.get_json()
-    refresh_token = data.get("refresh_token")
-
-    if not refresh_token:
-        return jsonify({"error": "Missing refresh token"}), 400
-
     try:
+        data = request.get_json()
+        refresh_token = data.get("refresh_token")
+
+        if not refresh_token:
+            return jsonify({"error": "Missing refresh token"}), 400
+
         decoded = jwt.decode(refresh_token, REFRESH_SECRET_KEY, algorithms=["HS256"])
         username = decoded["user"]
 
-        user = users_collection.find_one({"username": username, "refresh_token": refresh_token})
-        if not user:
-            return jsonify({"error": "Invalid refresh token"}), 401
+        access_token, new_refresh_token = generate_tokens(username)
 
-        access_token, _ = generate_tokens(username)
-        return jsonify({"access_token": access_token})
+        return jsonify({"access_token": access_token, "refresh_token": new_refresh_token})
 
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Refresh token expired"}), 401
     except jwt.InvalidTokenError:
         return jsonify({"error": "Invalid refresh token"}), 401
+    except Exception as e:
+        logging.error(f"❌ Error in refresh token: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
-# Secure Predict Route with JWT
+
+# 🔍 Secure Predict Route with JWT
 @app.route("/predict", methods=["POST"])
 def predict():
-    token = request.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization")
 
-    if not token:
-        return jsonify({"error": "Missing Token"}), 401
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or Invalid Token"}), 401
+
+    token = auth_header.split("Bearer ")[1]
 
     try:
         decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        data = request.get_json()
+        return jsonify({"message": f"Hello {decoded['user']}, Prediction service is working!", "data_received": data})
+
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token Expired"}), 401
     except jwt.InvalidTokenError:
         return jsonify({"error": "Invalid Token"}), 401
+    except Exception as e:
+        logging.error(f"❌ Error in prediction: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
-    data = request.get_json()
-    return jsonify({"message": f"Hello {decoded['user']}, Prediction service is working!", "data_received": data})
 
+# 🚀 Run Flask App
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
