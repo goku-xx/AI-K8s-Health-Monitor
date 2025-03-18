@@ -4,4 +4,6 @@ pymongo
 dnspython
 pyjwt
 werkzeug
+flask-cors
+python-dotenv
 prometheus_client
