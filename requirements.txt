@@ -5,5 +5,8 @@ dnspython
 pyjwt
 werkzeug
 flask-cors
-python-dotenv
 prometheus_client
+python-dotenv
+scikit-learn
+numpy
+pandas
