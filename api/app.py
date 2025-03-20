@@ -3,8 +3,7 @@ import jwt
 import datetime
 import uuid
 import logging
-import numpy as np
-import pandas as pd
+import sys
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -12,20 +11,19 @@ from pymongo.errors import ConnectionFailure
 from werkzeug.security import generate_password_hash, check_password_hash
 from prometheus_client import Gauge, generate_latest
 from dotenv import load_dotenv
-from sklearn.ensemble import IsolationForest  # ✅ AI Model for anomaly detection
 
 # ✅ Load environment variables
 load_dotenv()
 
 # ✅ Flask App Setup
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS for cross-origin requests
 
-# ✅ Configure Logging
+# ✅ Configure Logging (Fixes Unicode Errors on Windows)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(), logging.FileHandler("server.log")]
+    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("server.log", encoding="utf-8")]
 )
 
 # ✅ MongoDB Connection using MONGO_URI
@@ -36,13 +34,12 @@ if not MONGO_URI:
     exit(1)
 
 try:
-    logging.info("🔗 Connecting to MongoDB...")
+    logging.info("Connecting to MongoDB...")  # ✅ Removed Emojis for Windows Compatibility
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     client.server_info()  # Test connection
     db = client.get_default_database()  # Automatically picks DB from URI
     users_collection = db["users"]
-    logs_collection = db["predictions"]  # ✅ Store AI predictions
-    logging.info("✅ Successfully connected to MongoDB!")
+    logging.info("Successfully connected to MongoDB!")
 except ConnectionFailure as e:
     logging.error(f"❌ MongoDB Connection Error: {e}")
     exit(1)
@@ -96,6 +93,7 @@ def register():
             return jsonify({"error": "User already exists"}), 400
 
         hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
+
         users_collection.insert_one({"username": username, "password": hashed_password})
         return jsonify({"message": "User registered successfully"}), 201
 
@@ -122,6 +120,7 @@ def get_token():
             return jsonify({"error": "Invalid credentials"}), 401
 
         access_token, refresh_token = generate_tokens(username)
+
         return jsonify({"access_token": access_token, "refresh_token": refresh_token})
 
     except Exception as e:
@@ -144,6 +143,7 @@ def refresh():
         username = decoded["user"]
 
         access_token, new_refresh_token = generate_tokens(username)
+
         return jsonify({"access_token": access_token, "refresh_token": new_refresh_token})
 
     except jwt.ExpiredSignatureError:
@@ -155,40 +155,29 @@ def refresh():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# ✅ Load & Train the AI Model (Anomaly Detection)
-def train_model():
-    """Train an Isolation Forest model for anomaly detection."""
-    data = pd.DataFrame({
-        "cpu_usage": [30, 35, 32, 40, 50, 100],  # Normal data + anomaly
-        "memory_usage": [200, 220, 210, 250, 260, 500]  # Normal + anomaly
-    })
+# ✅ Secure Prediction Route with JWT Authentication
+@app.route("/predict", methods=["POST"])
+def predict():
+    """Secured route that requires authentication."""
+    auth_header = request.headers.get("Authorization")
 
-    model = IsolationForest(contamination=0.2)  # Detect anomalies
-    model.fit(data)
-    return model
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or Invalid Token"}), 401
 
-ai_model = train_model()
+    token = auth_header.split("Bearer ")[1]
 
+    try:
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        data = request.get_json()
+        return jsonify({"message": f"Hello {decoded['user']}, Prediction service is working!", "data_received": data})
 
-# ✅ AI-Based Prediction Route
-@app.route("/predict_ai", methods=["POST"])
-def predict_ai():
-    """Predict anomalies in Kubernetes cluster health data."""
-    data = request.get_json()
-    cpu = data.get("cpu_usage")
-    memory = data.get("memory_usage")
-
-    if cpu is None or memory is None:
-        return jsonify({"error": "Missing CPU or Memory usage data"}), 400
-
-    # Convert to DataFrame & Predict
-    prediction = ai_model.predict([[cpu, memory]])
-    result = "Anomaly Detected" if prediction[0] == -1 else "Normal"
-
-    # ✅ Store Prediction in MongoDB
-    logs_collection.insert_one({"cpu_usage": cpu, "memory_usage": memory, "prediction": result, "timestamp": datetime.datetime.utcnow()})
-
-    return jsonify({"cpu_usage": cpu, "memory_usage": memory, "prediction": result})
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token Expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid Token"}), 401
+    except Exception as e:
+        logging.error(f"❌ Error in prediction: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # ✅ Run Flask App

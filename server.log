@@ -26,3 +26,14 @@
 2025-03-20 12:53:01,149 - INFO - [33mPress CTRL+C to quit[0m
 2025-03-20 12:53:01,155 - INFO -  * Restarting with stat
 2025-03-20 12:53:03,098 - INFO - 🔗 Connecting to MongoDB...
+2025-03-20 14:25:50,190 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.120.251:5000
+2025-03-20 14:25:50,191 - INFO - [33mPress CTRL+C to quit[0m
+2025-03-20 14:25:50,196 - INFO -  * Restarting with stat
+2025-03-20 14:25:59,546 - WARNING -  * Debugger is active!
+2025-03-20 14:25:59,568 - INFO -  * Debugger PIN: 553-254-477
+2025-03-20 14:35:19,082 - INFO -  * Detected change in 'E:\\AI-K8s-Health-Monitor\\api\\app.py', reloading
+2025-03-20 14:35:22,654 - INFO -  * Restarting with stat
+2025-03-20 14:35:25,541 - INFO - Connecting to MongoDB...
