@@ -37,3 +37,19 @@
 2025-03-20 14:35:19,082 - INFO -  * Detected change in 'E:\\AI-K8s-Health-Monitor\\api\\app.py', reloading
 2025-03-20 14:35:22,654 - INFO -  * Restarting with stat
 2025-03-20 14:35:25,541 - INFO - Connecting to MongoDB...
+2025-03-20 14:35:35,084 - INFO - Connecting to MongoDB...
+2025-03-20 14:35:36,624 - INFO - Successfully connected to MongoDB!
+2025-03-20 14:35:36,792 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.120.251:5000
+2025-03-20 14:35:36,793 - INFO - [33mPress CTRL+C to quit[0m
+2025-03-20 14:35:36,798 - INFO -  * Restarting with stat
+2025-03-20 14:35:38,783 - INFO - Connecting to MongoDB...
+2025-03-20 14:35:41,844 - INFO - Successfully connected to MongoDB!
+2025-03-20 14:35:41,971 - WARNING -  * Debugger is active!
+2025-03-20 14:35:41,985 - INFO -  * Debugger PIN: 553-254-477
+2025-03-20 14:39:33,720 - INFO - 127.0.0.1 - - [20/Mar/2025 14:39:33] "[31m[1mPOST /register HTTP/1.1[0m" 400 -
+2025-03-20 14:43:37,422 - INFO - 127.0.0.1 - - [20/Mar/2025 14:43:37] "[35m[1mPOST /register HTTP/1.1[0m" 201 -
+2025-03-20 14:45:17,031 - INFO - 127.0.0.1 - - [20/Mar/2025 14:45:17] "POST /get_token HTTP/1.1" 200 -
+2025-03-20 14:48:43,367 - INFO - 127.0.0.1 - - [20/Mar/2025 14:48:43] "POST /predict HTTP/1.1" 200 -

@@ -3,7 +3,7 @@ import jwt
 import datetime
 import uuid
 import logging
-import sys
+import prometheus_client
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -19,11 +19,11 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)  # Enable CORS for cross-origin requests
 
-# ✅ Configure Logging (Fixes Unicode Errors on Windows)
+# ✅ Configure Logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("server.log", encoding="utf-8")]
+    handlers=[logging.StreamHandler(), logging.FileHandler("server.log")]
 )
 
 # ✅ MongoDB Connection using MONGO_URI
@@ -34,12 +34,12 @@ if not MONGO_URI:
     exit(1)
 
 try:
-    logging.info("Connecting to MongoDB...")  # ✅ Removed Emojis for Windows Compatibility
+    logging.info("🔗 Connecting to MongoDB...")
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     client.server_info()  # Test connection
-    db = client.get_default_database()  # Automatically picks DB from URI
+    db = client.get_database()  # Automatically picks DB from URI
     users_collection = db["users"]
-    logging.info("Successfully connected to MongoDB!")
+    logging.info("✅ Successfully connected to MongoDB!")
 except ConnectionFailure as e:
     logging.error(f"❌ MongoDB Connection Error: {e}")
     exit(1)
@@ -54,12 +54,14 @@ memory_usage = Gauge("k8s_memory_usage", "Memory Usage of the Kubernetes Cluster
 
 @app.route("/metrics")
 def metrics():
+    """Returns Kubernetes cluster metrics in Prometheus format"""
+    cpu_usage.set(30.5)  # Replace with real data from Kubernetes API
+    memory_usage.set(512)  # Replace with real data from Kubernetes API
     return Response(generate_latest(), mimetype="text/plain")
 
 @app.route("/")
 def home():
     return jsonify({"message": "Welcome to AI-K8s Health Monitor!"})
-
 
 # ✅ Function to Generate JWT Tokens
 def generate_tokens(username):
@@ -75,7 +77,6 @@ def generate_tokens(username):
         algorithm="HS256",
     )
     return access_token, refresh_token
-
 
 # ✅ User Registration Endpoint
 @app.route("/register", methods=["POST"])
@@ -100,7 +101,6 @@ def register():
     except Exception as e:
         logging.error(f"❌ Error in registration: {e}")
         return jsonify({"error": "Internal server error"}), 500
-
 
 # ✅ Token Generation Endpoint
 @app.route("/get_token", methods=["POST"])
@@ -127,34 +127,6 @@ def get_token():
         logging.error(f"❌ Error in token generation: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-
-# ✅ Refresh Token Endpoint
-@app.route("/refresh", methods=["POST"])
-def refresh():
-    """Refreshes JWT access token."""
-    try:
-        data = request.get_json()
-        refresh_token = data.get("refresh_token")
-
-        if not refresh_token:
-            return jsonify({"error": "Missing refresh token"}), 400
-
-        decoded = jwt.decode(refresh_token, REFRESH_SECRET_KEY, algorithms=["HS256"])
-        username = decoded["user"]
-
-        access_token, new_refresh_token = generate_tokens(username)
-
-        return jsonify({"access_token": access_token, "refresh_token": new_refresh_token})
-
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Refresh token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid refresh token"}), 401
-    except Exception as e:
-        logging.error(f"❌ Error in refresh token: {e}")
-        return jsonify({"error": "Internal server error"}), 500
-
-
 # ✅ Secure Prediction Route with JWT Authentication
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -178,7 +150,6 @@ def predict():
     except Exception as e:
         logging.error(f"❌ Error in prediction: {e}")
         return jsonify({"error": "Internal server error"}), 500
-
 
 # ✅ Run Flask App
 if __name__ == "__main__":
