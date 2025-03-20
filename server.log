@@ -1,0 +1,28 @@
+2025-03-20 12:39:22,067 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.91.251:5000
+2025-03-20 12:39:22,068 - INFO - [33mPress CTRL+C to quit[0m
+2025-03-20 12:39:22,074 - INFO -  * Restarting with stat
+2025-03-20 12:39:28,337 - WARNING -  * Debugger is active!
+2025-03-20 12:39:28,380 - INFO -  * Debugger PIN: 553-254-477
+2025-03-20 12:39:58,875 - INFO - 127.0.0.1 - - [20/Mar/2025 12:39:58] "GET / HTTP/1.1" 200 -
+2025-03-20 12:39:58,891 - INFO - 127.0.0.1 - - [20/Mar/2025 12:39:58] "GET / HTTP/1.1" 200 -
+2025-03-20 12:39:59,633 - INFO - 127.0.0.1 - - [20/Mar/2025 12:39:59] "GET / HTTP/1.1" 200 -
+2025-03-20 12:40:00,762 - INFO - 127.0.0.1 - - [20/Mar/2025 12:40:00] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-03-20 12:40:00,779 - INFO - 127.0.0.1 - - [20/Mar/2025 12:40:00] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-03-20 12:52:39,007 - INFO -  * Detected change in 'E:\\AI-K8s-Health-Monitor\\api\\app.py', reloading
+2025-03-20 12:52:40,424 - INFO -  * Restarting with stat
+2025-03-20 12:52:43,356 - INFO - 🔗 Connecting to MongoDB...
+2025-03-20 12:52:44,125 - INFO - ✅ Successfully connected to MongoDB!
+2025-03-20 12:52:44,253 - WARNING -  * Debugger is active!
+2025-03-20 12:52:44,284 - INFO -  * Debugger PIN: 553-254-477
+2025-03-20 12:53:00,363 - INFO - 🔗 Connecting to MongoDB...
+2025-03-20 12:53:01,001 - INFO - ✅ Successfully connected to MongoDB!
+2025-03-20 12:53:01,148 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.91.251:5000
+2025-03-20 12:53:01,149 - INFO - [33mPress CTRL+C to quit[0m
+2025-03-20 12:53:01,155 - INFO -  * Restarting with stat
+2025-03-20 12:53:03,098 - INFO - 🔗 Connecting to MongoDB...

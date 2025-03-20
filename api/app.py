@@ -11,15 +11,19 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from prometheus_client import Gauge, generate_latest
 from dotenv import load_dotenv
 
-# 🔹 Load environment variables
+# ✅ Load environment variables
 load_dotenv()
 
-# 🔹 Flask App Setup
+# ✅ Flask App Setup
 app = Flask(__name__)
 CORS(app)  # Enable CORS for cross-origin requests
 
-# 🔹 Configure Logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# ✅ Configure Logging (Fixed Windows Unicode Issues)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(), logging.FileHandler("server.log", encoding="utf-8")]
+)
 
 # ✅ MongoDB Connection using MONGO_URI
 MONGO_URI = os.getenv("MONGO_URI")
@@ -31,19 +35,23 @@ if not MONGO_URI:
 try:
     logging.info("🔗 Connecting to MongoDB...")
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-    client.server_info()  # Test connection
     db = client.get_database()  # Automatically picks DB from URI
     users_collection = db["users"]
+    token_blacklist = db["token_blacklist"]  # New collection for token revocation
     logging.info("✅ Successfully connected to MongoDB!")
 except ConnectionFailure as e:
     logging.error(f"❌ MongoDB Connection Error: {e}")
     exit(1)
 
-# 🔒 Secret Keys for JWT Authentication
+# ✅ Secret Keys for JWT Authentication
 SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
 REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY", "default_refresh_key")
 
-# 🔹 Define Prometheus Metrics
+# ✅ JWT Token Expiry Settings (Configured in .env)
+ACCESS_TOKEN_EXPIRY = int(os.getenv("ACCESS_TOKEN_EXPIRY", 30))  # Default 30 mins
+REFRESH_TOKEN_EXPIRY = int(os.getenv("REFRESH_TOKEN_EXPIRY", 7))  # Default 7 days
+
+# ✅ Define Prometheus Metrics
 cpu_usage = Gauge("k8s_cpu_usage", "CPU Usage of the Kubernetes Cluster")
 memory_usage = Gauge("k8s_memory_usage", "Memory Usage of the Kubernetes Cluster")
 
@@ -56,24 +64,26 @@ def home():
     return jsonify({"message": "Welcome to AI-K8s Health Monitor!"})
 
 
-# 🔑 Function to Generate JWT Tokens
+# ✅ Function to Generate JWT Tokens
 def generate_tokens(username):
+    """Generates access and refresh tokens for a user."""
     access_token = jwt.encode(
-        {"user": username, "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=30)},
+        {"user": username, "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRY)},
         SECRET_KEY,
         algorithm="HS256",
     )
     refresh_token = jwt.encode(
-        {"user": username, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7), "jti": str(uuid.uuid4())},
+        {"user": username, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=REFRESH_TOKEN_EXPIRY), "jti": str(uuid.uuid4())},
         REFRESH_SECRET_KEY,
         algorithm="HS256",
     )
     return access_token, refresh_token
 
 
-# 📝 User Registration
+# ✅ User Registration Endpoint
 @app.route("/register", methods=["POST"])
 def register():
+    """Registers a new user."""
     try:
         data = request.get_json()
         username = data.get("username")
@@ -95,9 +105,10 @@ def register():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# 🔑 Generate Access & Refresh Tokens
+# ✅ Token Generation Endpoint
 @app.route("/get_token", methods=["POST"])
 def get_token():
+    """Authenticates user and returns JWT tokens."""
     try:
         data = request.get_json()
         username = data.get("username")
@@ -120,9 +131,10 @@ def get_token():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# 🔄 Refresh Token Endpoint
+# ✅ Refresh Token Endpoint
 @app.route("/refresh", methods=["POST"])
 def refresh():
+    """Refreshes JWT access token."""
     try:
         data = request.get_json()
         refresh_token = data.get("refresh_token")
@@ -146,9 +158,10 @@ def refresh():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# 🔍 Secure Predict Route with JWT
+# ✅ Secure Prediction Route with JWT Authentication
 @app.route("/predict", methods=["POST"])
 def predict():
+    """Secured route that requires authentication."""
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -157,6 +170,9 @@ def predict():
     token = auth_header.split("Bearer ")[1]
 
     try:
+        if token_blacklist.find_one({"token": token}):
+            return jsonify({"error": "Token has been revoked"}), 401  # Token Revocation Check
+
         decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         data = request.get_json()
         return jsonify({"message": f"Hello {decoded['user']}, Prediction service is working!", "data_received": data})
@@ -170,6 +186,20 @@ def predict():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# 🚀 Run Flask App
+# ✅ Logout Route (Blacklisting Token)
+@app.route("/logout", methods=["POST"])
+def logout():
+    """Revokes token by adding it to the blacklist."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Missing or Invalid Token"}), 401
+
+    token = auth_header.split("Bearer ")[1]
+    token_blacklist.insert_one({"token": token})  # Store in MongoDB
+
+    return jsonify({"message": "Logged out successfully!"})
+
+
+# ✅ Run Flask App
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
