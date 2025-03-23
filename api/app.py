@@ -20,11 +20,20 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for cross-origin requests
 
 # ✅ Configure Logging
+import logging
+
+# Configure Logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(), logging.FileHandler("server.log")]
+    handlers=[
+        logging.StreamHandler(),         # Logs to console
+        logging.FileHandler("server.log", encoding="utf-8")  # Logs to file
+    ]
 )
+
+logging.info("🚀 AI-K8s Health Monitor API is starting...")
+
 
 # ✅ MongoDB Connection using MONGO_URI
 MONGO_URI = os.getenv("MONGO_URI")
@@ -101,6 +110,14 @@ def register():
     except Exception as e:
         logging.error(f"❌ Error in registration: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+@app.route("/health")
+def health_check():
+    return {"status": "ok"}
+
+@app.route("/users", methods=["GET"])
+def get_users():
+    return {"users": []}  # or the logic you added to fetch users from MongoDB.
 
 # ✅ Token Generation Endpoint
 @app.route("/get_token", methods=["POST"])

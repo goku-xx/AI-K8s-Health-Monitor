@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-k8s-health-monitor
+spec:
+  replicas: 2  # Number of instances (adjust as needed)
+  selector:
+    matchLabels:
+      app: ai-k8s-health-monitor
+  template:
+    metadata:
+      labels:
+        app: ai-k8s-health-monitor
+    spec:
+      containers:
+        - name: ai-k8s-health-monitor
+          image: gokul200407/ai-k8s-health-monitor:latest
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: mongo-config
